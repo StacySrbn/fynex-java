@@ -1,0 +1,121 @@
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(120),
+  role ENUM('USER', 'PREMIUM', 'ADMIN') NOT NULL DEFAULT 'USER',
+  status ENUM('ACTIVE', 'BLOCKED') NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  icon VARCHAR(50),
+  type ENUM('SYSTEM', 'CUSTOM') NOT NULL DEFAULT 'SYSTEM',
+  user_id BIGINT NULL,
+  CONSTRAINT fk_cat_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  amount DECIMAL(12,2) NOT NULL,
+  date DATE NOT NULL,
+  description VARCHAR(255),
+  type ENUM('INCOME', 'EXPENSE') NOT NULL,
+  source ENUM('MANUAL', 'IMPORT', 'RECURRING') NOT NULL DEFAULT 'MANUAL',
+  user_id BIGINT NOT NULL,
+  category_id BIGINT NULL,
+  CONSTRAINT fk_tx_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tx_cat FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+  INDEX idx_tx_user_date (user_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS budgets (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  limit_amount DECIMAL(12,2) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  user_id BIGINT NOT NULL,
+  category_id BIGINT NOT NULL,
+  CONSTRAINT fk_budget_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_budget_cat FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  target_amount DECIMAL(12,2) NOT NULL,
+  current_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  icon VARCHAR(50),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id BIGINT NOT NULL,
+  CONSTRAINT fk_sg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(120) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NULL,
+  repeat_count INT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  frequency ENUM('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY') NOT NULL,
+  user_id BIGINT NOT NULL,
+  category_id BIGINT NULL,
+  CONSTRAINT fk_rt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rt_cat FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  message VARCHAR(255) NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id BIGINT NOT NULL,
+  CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS import_jobs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  file_name VARCHAR(255) NOT NULL,
+  status ENUM('PENDING', 'PROCESSING', 'DONE', 'FAILED') NOT NULL DEFAULT 'PENDING',
+  error_log TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_id BIGINT NOT NULL,
+  CONSTRAINT fk_imp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS export_jobs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  date_from DATE NOT NULL,
+  date_to DATE NOT NULL,
+  format ENUM('CSV', 'PDF') NOT NULL,
+  file_url VARCHAR(255),
+  status ENUM('PENDING', 'PROCESSING', 'DONE', 'FAILED') NOT NULL DEFAULT 'PENDING',
+  user_id BIGINT NOT NULL,
+  CONSTRAINT fk_exp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS admin_actions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  action_type VARCHAR(120) NOT NULL,
+  target_user_id BIGINT NULL,
+  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  admin_id BIGINT NOT NULL,
+  CONSTRAINT fk_aa_admin FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Insert default system categories
+INSERT IGNORE INTO categories (name, icon, type, user_id) VALUES
+('Їжа', 'utensils', 'SYSTEM', NULL),
+('Одяг', 'shirt', 'SYSTEM', NULL),
+('Транспорт', 'car', 'SYSTEM', NULL),
+('Розваги', 'gamepad', 'SYSTEM', NULL),
+('Здоров''я', 'heart', 'SYSTEM', NULL),
+('Житло', 'home', 'SYSTEM', NULL),
+('Освіта', 'book', 'SYSTEM', NULL),
+('Зарплата', 'briefcase', 'SYSTEM', NULL),
+('Подарунки', 'gift', 'SYSTEM', NULL),
+('Інше', 'ellipsis', 'SYSTEM', NULL);

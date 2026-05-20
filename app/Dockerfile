@@ -1,24 +1,17 @@
-# syntax=docker/dockerfile:1.7
-FROM node:20-alpine AS base
+FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
+COPY pom.xml .
+RUN mvn -q -DskipTests dependency:go-offline
+COPY src ./src
+RUN mvn -q -DskipTests clean package
 
-FROM base AS deps
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-FROM base AS build
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM base AS runtime
-ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY package*.json ./
-USER app
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD wget -qO- http://localhost:3000/health || exit 1
-CMD ["node", "dist/main.js"]
+FROM eclipse-temurin:17-jre-alpine AS runtime
+WORKDIR /app
+RUN addgroup -S spring && adduser -S spring -G spring
+COPY --from=build /app/target/*.jar app.jar
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75"
+USER spring
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=5 \
+  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar app.jar"]
